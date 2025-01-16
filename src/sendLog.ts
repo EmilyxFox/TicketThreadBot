@@ -1,6 +1,6 @@
 import { EmbedBuilder } from '@discordjs/builders';
 import { Client, MessageEmbed, Snowflake } from 'discord.js';
-import { logChannelId } from './config.json';
+import { env } from './env';
 
 const sendLog = async ({
   title,
@@ -23,7 +23,7 @@ const sendLog = async ({
   messageId?: Snowflake;
   color: [number, number, number];
 }): Promise<void> => {
-  const logChannel = client.channels.cache.get(logChannelId);
+  const logChannel = client.channels.cache.get(env.LOG_CHANNEL_ID);
   if (!logChannel || !logChannel.isText()) return;
   const embed = new EmbedBuilder()
     .setTitle(title)
@@ -31,9 +31,7 @@ const sendLog = async ({
     .setTimestamp(Date.now())
     .setColor(color);
   if (guildId && messageId) {
-    embed.setURL(
-      `https://discord.com/channels/${guildId}/${ticketId}/${messageId}`,
-    );
+    embed.setURL(`https://discord.com/channels/${guildId}/${ticketId}/${messageId}`);
   }
   if (message) {
     embed.setDescription(message);

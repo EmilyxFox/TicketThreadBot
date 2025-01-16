@@ -1,23 +1,12 @@
 // Require the necessary discord.js classes
-import {
-  Client,
-  Intents,
-  Collection,
-  MessageComponentInteraction,
-  CommandInteraction,
-} from 'discord.js';
+import { Client, Intents, Collection, MessageComponentInteraction, CommandInteraction } from 'discord.js';
 import { PrismaClient } from '@prisma/client';
-import { token } from './config.json';
 import fs from 'fs';
-import {
-  StoredButton,
-  StoredCommand,
-  CooldownsType,
-  MessageError,
-} from './types';
+import { StoredButton, StoredCommand, CooldownsType, MessageError } from './types';
 import { Snowflake } from 'discord-api-types/v9';
 import { checkCooldown } from './cooldowns';
 import { checkPendingLocks, ticketList } from './tickets';
+import { env } from './env';
 const buildDir = 'dist'; // The build directory
 
 /* Parse the ./commands directory for commands
@@ -25,8 +14,7 @@ Each file should have an export in the format of StoredCommand */
 
 export const prisma = new PrismaClient();
 
-export const CurrentEditingTickets: Collection<Snowflake, boolean> =
-  new Collection();
+export const CurrentEditingTickets: Collection<Snowflake, boolean> = new Collection();
 const main = () => {
   const commands: Collection<string, StoredCommand> = new Collection();
   const buttons: Collection<string, StoredButton> = new Collection();
@@ -35,9 +23,7 @@ const main = () => {
     buttons: new Collection(),
   };
 
-  const commandFiles = fs
-    .readdirSync(`./${buildDir}/commands`)
-    .filter((file) => file.endsWith('.js')); // js instead of ts because the file is read after files are built
+  const commandFiles = fs.readdirSync(`./${buildDir}/commands`).filter((file) => file.endsWith('.js')); // js instead of ts because the file is read after files are built
 
   for (const file of commandFiles) {
     const command = require(`./commands/${file}`) as StoredCommand; // eslint-disable-line @typescript-eslint/no-var-requires
@@ -45,9 +31,7 @@ const main = () => {
     commands.set(command.data.name, command);
   }
 
-  const buttonFiles = fs
-    .readdirSync(`./${buildDir}/buttons`)
-    .filter((file) => file.endsWith('.js')); // js instead of ts because the file is read after files are built
+  const buttonFiles = fs.readdirSync(`./${buildDir}/buttons`).filter((file) => file.endsWith('.js')); // js instead of ts because the file is read after files are built
 
   for (const file of buttonFiles) {
     const button = require(`./buttons/${file}`) as StoredButton; // eslint-disable-line @typescript-eslint/no-var-requires
@@ -62,20 +46,12 @@ const main = () => {
   let checkPendingLockInterval: NodeJS.Timer;
 
   client.once('ready', () => {
-    console.log('Ready!');
     if (!checkPendingLockInterval) {
-      checkPendingLockInterval = setInterval(
-        checkPendingLocks,
-        5 * 1000,
-        client,
-      ); // interval is cancelled in .finally
+      checkPendingLockInterval = setInterval(checkPendingLocks, 5 * 1000, client); // interval is cancelled in .finally
     }
   });
 
-  const handleInteractionError = async (
-    interaction: MessageComponentInteraction | CommandInteraction,
-    error: Error | MessageError,
-  ) => {
+  const handleInteractionError = async (interaction: MessageComponentInteraction | CommandInteraction, error: Error | MessageError) => {
     let message: string;
     if ('internal' in error) {
       message = error.message;
@@ -125,12 +101,7 @@ const main = () => {
       }
       try {
         if (command.cooldown) {
-          await checkCooldown(
-            interaction.commandName,
-            cooldowns.commands,
-            command.cooldown,
-            interaction.user.id,
-          );
+          await checkCooldown(interaction.commandName, cooldowns.commands, command.cooldown, interaction.user.id);
         }
         await command.execute(interaction, client);
       } catch (error) {
@@ -169,8 +140,7 @@ const main = () => {
           );
         }
 
-        if (!ticketList.includes(extraArg.toUpperCase()))
-          throw new MessageError('Incorrect ticket type!');
+        if (!ticketList.includes(extraArg.toUpperCase())) throw new MessageError('Incorrect ticket type!');
         const ticketType = extraArg;
         await button.execute({ interaction, ticketType });
       } catch (error) {
@@ -191,9 +161,7 @@ const main = () => {
       }
       // locked is not check as this caused issues
       if (threadData.lockAt) {
-        await newThread.send(
-          'This ticket has been reopened after the ticket has been unarchived.',
-        );
+        await newThread.send('This ticket has been reopened after the ticket has been unarchived.');
         await prisma.ticket.update({
           data: {
             lockAt: null,
@@ -205,7 +173,7 @@ const main = () => {
   });
 
   // Login to Discord with client's token
-  client.login(token).finally(async () => {
+  client.login(env.DISCORD_TOKEN).finally(async () => {
     await prisma.$disconnect();
     clearInterval(checkPendingLockInterval);
   });

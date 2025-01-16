@@ -1,29 +1,13 @@
 import { SlashCommandBuilder } from '@discordjs/builders';
 import { CloseReason } from '@prisma/client';
-import {
-  Client,
-  CommandInteraction,
-  GuildMemberRoleManager,
-  MessageActionRow,
-  MessageButtonStyle,
-  TextChannel,
-  ThreadChannel,
-} from 'discord.js';
+import { Client, CommandInteraction, GuildMemberRoleManager, MessageActionRow, MessageButtonStyle, TextChannel, ThreadChannel } from 'discord.js';
 
 import { MessageError, StoredCommand } from '../types';
 import { closeTicket, createTicket, sendAnonMessage } from '../tickets';
-import {
-  ChannelType,
-  ApplicationCommandPermissionType,
-} from 'discord-api-types/v9';
-import {
-  modRoleId,
-  generatedTicketType,
-  ticketTypes,
-  ticketChannelId,
-  buttonsMessage,
-} from '../config.json';
+import { ChannelType, ApplicationCommandPermissionType } from 'discord-api-types/v9';
+import { ticketTypes } from '../config.json';
 import { generateButtonData } from '../buttons/createTicketButton';
+import { env } from '../env';
 const commandData: StoredCommand = {
   data: new SlashCommandBuilder()
     .setName('ticket')
@@ -41,42 +25,20 @@ const commandData: StoredCommand = {
             .addChoices(
               ...Object.values(CloseReason).map((reason) => {
                 let name = reason.toLowerCase();
-                name = name
-                  .replaceAll('_', ' ')
-                  .replace(/\w\S*/g, (w) =>
-                    w.replace(/^\w/, (c) => c.toUpperCase()),
-                  );
+                name = name.replaceAll('_', ' ').replace(/\w\S*/g, (w) => w.replace(/^\w/, (c) => c.toUpperCase()));
                 return { name, value: reason as string };
               }),
             ),
         )
-        .addStringOption((option) =>
-          option
-            .setName('description')
-            .setDescription(
-              'A brief description of the ticket, not required for invalid tickets',
-            ),
-        ),
+        .addStringOption((option) => option.setName('description').setDescription('A brief description of the ticket, not required for invalid tickets')),
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName('open')
         .setDescription('Open a new ticket with user provided')
-        .addUserOption((option) =>
-          option
-            .setName('target')
-            .setDescription('The user to open a ticket for')
-            .setRequired(true),
-        )
-        .addBooleanOption((option) =>
-          option
-            .setName('anonymous')
-            .setDescription("Open the ticket as the 'moderators' not you")
-            .setRequired(true),
-        )
-        .addStringOption((option) =>
-          option.setName('message').setDescription('An initial message'),
-        ),
+        .addUserOption((option) => option.setName('target').setDescription('The user to open a ticket for').setRequired(true))
+        .addBooleanOption((option) => option.setName('anonymous').setDescription("Open the ticket as the 'moderators' not you").setRequired(true))
+        .addStringOption((option) => option.setName('message').setDescription('An initial message')),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -87,25 +49,15 @@ const commandData: StoredCommand = {
             .setName('ticket')
             .setRequired(true)
             .setDescription('The ticket to send the message to')
-            .addChannelTypes(
-              ChannelType.GuildPrivateThread,
-              ChannelType.GuildPublicThread,
-            ),
+            .addChannelTypes(ChannelType.GuildPrivateThread, ChannelType.GuildPublicThread),
         )
-        .addStringOption((option) =>
-          option
-            .setName('message')
-            .setRequired(true)
-            .setDescription('The message to send'),
-        ),
+        .addStringOption((option) => option.setName('message').setRequired(true).setDescription('The message to send')),
     )
-    .addSubcommand((subcommand) =>
-      subcommand.setName('send-buttons').setDescription('Send ticket buttons'),
-    ),
+    .addSubcommand((subcommand) => subcommand.setName('send-buttons').setDescription('Send ticket buttons')),
   guildOnly: true,
   permissions: [
     {
-      id: modRoleId,
+      id: env.MOD_ROLE_ID,
       type: ApplicationCommandPermissionType.Role,
       permission: true,
     },
@@ -114,18 +66,15 @@ const commandData: StoredCommand = {
   async execute(interaction: CommandInteraction, client: Client) {
     await interaction.deferReply({ ephemeral: true });
 
-    if (!interaction.guild || !interaction.member)
-      throw new MessageError('This command must be used in a guild');
+    if (!interaction.guild || !interaction.member) throw new MessageError('This command must be used in a guild');
     let hasModRole = false;
     if (interaction.member.roles instanceof GuildMemberRoleManager) {
-      hasModRole = interaction.member.roles.cache.get(modRoleId) ? true : false;
+      hasModRole = interaction.member.roles.cache.get(env.MOD_ROLE_ID) ? true : false;
     } else {
-      hasModRole = interaction.member.roles.includes(modRoleId);
+      hasModRole = interaction.member.roles.includes(env.MOD_ROLE_ID);
     }
     if (!hasModRole) {
-      throw new MessageError(
-        'You do not have the correct roles to use this command. \nPlease contact your administrator if this is in error!',
-      );
+      throw new MessageError('You do not have the correct roles to use this command. \nPlease contact your administrator if this is in error!');
     }
     const subcommandName = interaction.options.getSubcommand();
     switch (subcommandName) {
@@ -143,7 +92,7 @@ const commandData: StoredCommand = {
         });
         break;
       case 'open':
-        const channel = interaction.guild.channels.cache.get(ticketChannelId);
+        const channel = interaction.guild.channels.cache.get(env.TICKET_CHANNEL_ID);
         if (!(channel instanceof TextChannel)) {
           throw new Error('Tickets cannot be created in news channels!');
         }
@@ -161,7 +110,7 @@ const commandData: StoredCommand = {
         await createTicket({
           channel,
           userId: user.id,
-          ticketType: generatedTicketType,
+          ticketType: env.GENERATED_TICKET_TYPE,
           userDisplayName: user.username,
           modGeneratedOptions: {
             message,
@@ -179,9 +128,7 @@ const commandData: StoredCommand = {
           throw new MessageError('This command can only be used in a guild!');
         }
         if (!interaction.memberPermissions?.has('ADMINISTRATOR')) {
-          throw new MessageError(
-            'You need the administrator permission to do this action!',
-          );
+          throw new MessageError('You need the administrator permission to do this action!');
         }
         const row = new MessageActionRow();
         if (ticketTypes.length > 5) {
@@ -196,7 +143,7 @@ const commandData: StoredCommand = {
           );
         });
         await interaction.channel.send({
-          content: buttonsMessage,
+          content: env.BUTTONS_MESSAGE,
           components: [row],
         });
         await interaction.editReply({
@@ -208,18 +155,12 @@ const commandData: StoredCommand = {
         if (!ticket) {
           throw new MessageError('Ticket is a required option!');
         }
-        if (!(ticket instanceof ThreadChannel))
-          throw new MessageError('Ticket option must be a thread!');
+        if (!(ticket instanceof ThreadChannel)) throw new MessageError('Ticket option must be a thread!');
         const messageContent = interaction.options.getString('message');
         if (!messageContent) {
           throw new MessageError('Message is a required option!');
         }
-        await sendAnonMessage(
-          ticket,
-          messageContent,
-          interaction.user.id,
-          client,
-        );
+        await sendAnonMessage(ticket, messageContent, interaction.user.id, client);
         await interaction.editReply({
           content: `Anonymous message sent to <#${ticket.id}>`,
         });

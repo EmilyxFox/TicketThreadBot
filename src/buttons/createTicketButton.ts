@@ -1,40 +1,24 @@
-import {
-  GuildMemberRoleManager,
-  MessageButton,
-  MessageButtonStyleResolvable,
-  TextChannel,
-} from 'discord.js';
+import { GuildMemberRoleManager, MessageButton, MessageButtonStyleResolvable, TextChannel } from 'discord.js';
 import { createTicket } from '../tickets';
 import { ButtonOptions, MessageError } from '../types';
-import { barredRoleId, barredMessage, ticketChannelId } from '../config.json';
+import { env } from '../env';
 
 type generateButtonDataOptions = {
   ticketType: string;
   style: MessageButtonStyleResolvable;
 };
-const generateButtonData = ({
-  ticketType,
-  style,
-}: generateButtonDataOptions): MessageButton => {
-  if (ticketType.includes(':'))
-    throw new Error('Ticket type cannot contain the character ":"!');
-  const button = new MessageButton()
-    .setCustomId(`create-ticket:${ticketType}`)
-    .setLabel(`Open ${ticketType}`)
-    .setStyle(style);
+const generateButtonData = ({ ticketType, style }: generateButtonDataOptions): MessageButton => {
+  if (ticketType.includes(':')) throw new Error('Ticket type cannot contain the character ":"!');
+  const button = new MessageButton().setCustomId(`create-ticket:${ticketType}`).setLabel(`Open ${ticketType}`).setStyle(style);
   return button;
 };
 
-const execute = async ({
-  interaction,
-  ticketType,
-}: ButtonOptions): Promise<void> => {
+const execute = async ({ interaction, ticketType }: ButtonOptions): Promise<void> => {
   await interaction.deferReply({ ephemeral: true });
 
-  if (!interaction.guild || !interaction.member)
-    throw new MessageError('This command must be used in a guild');
+  if (!interaction.guild || !interaction.member) throw new MessageError('This command must be used in a guild');
 
-  const channel = interaction.guild.channels.cache.get(ticketChannelId);
+  const channel = interaction.guild.channels.cache.get(env.TICKET_CHANNEL_ID);
 
   if (!channel) {
     throw new Error('Could not find the ticket channel!');
@@ -45,14 +29,12 @@ const execute = async ({
 
   let hasBarredRole = false;
   if (interaction.member.roles instanceof GuildMemberRoleManager) {
-    hasBarredRole = interaction.member.roles.cache.get(barredRoleId)
-      ? true
-      : false;
+    hasBarredRole = interaction.member.roles.cache.get(env.BARRED_ROLE_ID) ? true : false;
   } else {
-    hasBarredRole = interaction.member.roles.includes(barredRoleId);
+    hasBarredRole = interaction.member.roles.includes(env.BARRED_ROLE_ID);
   }
   if (hasBarredRole) {
-    throw new MessageError(barredMessage);
+    throw new MessageError(env.BARRED_MESSAGE);
   }
 
   await createTicket({

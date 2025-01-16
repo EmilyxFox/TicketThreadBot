@@ -6,7 +6,7 @@ export const checkCooldown = async (
   cooldowns: CooldownCollection,
   cooldown: number,
   userId: Snowflake,
-) => {
+): Promise<void> => {
   if (!cooldowns.has(commandName)) {
     cooldowns.set(commandName, new Collection());
   }

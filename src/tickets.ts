@@ -1,24 +1,13 @@
-import {
-  Client,
-  CommandInteraction,
-  TextChannel,
-  ThreadChannel,
-  Collection,
-} from 'discord.js';
+import { Client, CommandInteraction, TextChannel, ThreadChannel, Collection } from 'discord.js';
 import { Snowflake, ThreadAutoArchiveDuration } from 'discord-api-types/v9';
-import {
-  ticketTypes,
-  lockTime,
-  generatedMessage,
-  autoArchiveDuration,
-  anonymousUser,
-} from './config.json';
+import { ticketTypes } from './config.json';
 import { MessageError, TicketConfig } from './types';
 import { CurrentEditingTickets, prisma } from './index';
 import { CloseReason } from '.prisma/client';
 import axios from 'axios';
 import { sendLog } from './sendLog';
 import { embedBlue, embedGreen, embedOrange, embedRed } from './consts';
+import { env } from './env';
 
 const ticketMap: Collection<string, TicketConfig> = new Collection();
 const ticketList: string[] = [];
@@ -39,20 +28,12 @@ type createTicketArgs = {
     anonymous: boolean;
   };
 };
-const createTicket = async ({
-  channel,
-  userId,
-  userDisplayName,
-  ticketType,
-  modGeneratedOptions,
-}: createTicketArgs): Promise<void> => {
-  const textId = (await axios.get('https://uuid.rocks/nanoid?len=10'))
-    .data as string;
+const createTicket = async ({ channel, userId, userDisplayName, ticketType, modGeneratedOptions }: createTicketArgs): Promise<void> => {
+  const textId = (await axios.get('https://uuid.rocks/nanoid?len=10')).data as string;
   const thread = await channel.threads.create({
     name: `${userDisplayName}-${textId}`,
-    autoArchiveDuration: autoArchiveDuration as ThreadAutoArchiveDuration,
-    //type: 'GUILD_PRIVATE_THREAD', // Uncomment this when in production, in testing private threads cannot be used
-    type: 'GUILD_PUBLIC_THREAD',
+    autoArchiveDuration: env.AUTO_ARCHIVE_DURATION as ThreadAutoArchiveDuration,
+    type: env.NODE_ENV === 'production' ? 'GUILD_PRIVATE_THREAD' : 'GUILD_PUBLIC_THREAD',
     reason: `User (${userId}) created a ${ticketType} ticket.`,
     invitable: false,
   });
@@ -71,35 +52,25 @@ const createTicket = async ({
     throw new Error('That ticket type was not found!');
   }
   if (modGeneratedOptions) {
-    let messageString = generatedMessage.replace('{{user}}', `<@${userId}>`);
+    let messageString = env.GENERATED_MESSAGE.replace('{{user}}', `<@${userId}>`);
     if (!modGeneratedOptions.anonymous) {
-      messageString = messageString.replace(
-        '{{creator}}',
-        `<@${modGeneratedOptions.creatorId}>`,
-      );
+      messageString = messageString.replace('{{creator}}', `<@${modGeneratedOptions.creatorId}>`);
     } else {
-      messageString = messageString.replace('{{creator}}', anonymousUser);
+      messageString = messageString.replace('{{creator}}', env.ANONYMOUS_USER);
     }
     const sentInitialMessage = await thread.send({
       content: messageString,
     });
     if (modGeneratedOptions.message) {
       await thread.send({
-        content: `> ${modGeneratedOptions?.message.replace(
-          /\n/,
-          '\n > ',
-        )}\n - ${
-          modGeneratedOptions.anonymous
-            ? anonymousUser
-            : modGeneratedOptions?.creatorDisplayName
+        content: `> ${modGeneratedOptions?.message.replace(/\n/, '\n > ')}\n - ${
+          modGeneratedOptions.anonymous ? env.ANONYMOUS_USER : modGeneratedOptions?.creatorDisplayName
         }`,
       });
     }
     await sendLog({
       title: 'Ticket created',
-      message: modGeneratedOptions.message
-        ? `**Content:**\n${modGeneratedOptions.message} `
-        : undefined,
+      message: modGeneratedOptions.message ? `**Content:**\n${modGeneratedOptions.message} ` : undefined,
       userId: modGeneratedOptions?.creatorId,
       client: channel.client,
       ticketId: thread.id,
@@ -109,10 +80,11 @@ const createTicket = async ({
       color: embedGreen,
     });
   } else {
-    const messageString = ticketData.message.replace(
-      '{{user}}',
-      `<@${userId}>`,
-    );
+    const replacedUser = ticketData.message.replace('{{user}}', `<@${userId}>`);
+    const replacedModRole = replacedUser.replace('{{modrole}}', `<@&${env.MOD_ROLE_ID}>`);
+
+    const messageString = replacedModRole;
+
     const sentInitialMessage = await thread.send({
       content: messageString,
     });
@@ -131,12 +103,7 @@ const createTicket = async ({
   }
 };
 
-const sendAnonMessage = async (
-  channel: ThreadChannel,
-  message: string,
-  authorId: Snowflake,
-  client: Client,
-): Promise<void> => {
+const sendAnonMessage = async (channel: ThreadChannel, message: string, authorId: Snowflake, client: Client): Promise<void> => {
   const ticketDBData = await prisma.ticket.findUnique({
     where: { id: channel.id },
   });
@@ -145,10 +112,7 @@ const sendAnonMessage = async (
     throw new MessageError('That ticket is locked!');
   }
 
-  const formattedMessage = `> ${message.replace(
-    /\n/,
-    '\n > ',
-  )}\n - ${anonymousUser}`;
+  const formattedMessage = `> ${message.replace(/\n/, '\n > ')}\n - ${env.ANONYMOUS_USER}`;
 
   await channel.send(formattedMessage);
   await sendLog({
@@ -163,33 +127,26 @@ const sendAnonMessage = async (
 
 const closeTicket = async (
   interaction: CommandInteraction,
-  {
-    reason,
-    description,
-    client,
-  }: { reason: CloseReason; description?: string; client: Client },
+  { reason, description, client }: { reason: CloseReason; description?: string; client: Client },
 ): Promise<void> => {
   const channel = interaction.channel;
-  if (!(channel instanceof ThreadChannel))
-    throw new MessageError('This is not a ticket!');
+  if (!(channel instanceof ThreadChannel)) throw new MessageError('This is not a ticket!');
   const ticketDBData = await prisma.ticket.findUnique({
     where: { id: channel.id },
   });
   if (!ticketDBData) throw new MessageError('This ticket could not be found!');
   if (ticketDBData.lockAt) {
+    console.log(ticketDBData);
+    console.log(ticketDBData.lockAt.getTime());
     const lockAtTimestamp = Math.round(ticketDBData.lockAt.getTime() / 1000);
     const message = `This ticket was already closed and will be locked at <t:${lockAtTimestamp}:F> <t:${lockAtTimestamp}:R>`;
     if (ticketDBData.lockAt < new Date()) {
       // Have to reply before archiving ticket
 
       await interaction.editReply({
-        content:
-          'This ticket has already been locked. Please open another ticket',
+        content: 'This ticket has already been locked. Please open another ticket',
       });
-      await channel.edit(
-        { locked: true, archived: true },
-        `Closed ticket closed again by ${interaction.user.username}#${interaction.user.discriminator}`,
-      ); // TODO CHECK IF REARCHIVING IS NEEDED
+      await channel.edit({ locked: true, archived: true }, `Closed ticket closed again by ${interaction.user.username}#${interaction.user.discriminator}`); // TODO CHECK IF REARCHIVING IS NEEDED
       await prisma.ticket.update({
         data: {
           locked: true,
@@ -202,15 +159,10 @@ const closeTicket = async (
       await interaction.editReply({
         content: message,
       });
-      await channel.setArchived(
-        true,
-        `Ticket closed again by ${interaction.user.username}#${interaction.user.discriminator}`,
-      );
+      await channel.setArchived(true, `Ticket closed again by ${interaction.user.username}#${interaction.user.discriminator}`);
       await sendLog({
         title: 'Ticket re-closed',
-        message: `**Reason:** \`${reason}\`${
-          description ? `\n**Description:**\n${description}` : ''
-        }`,
+        message: `**Reason:** \`${reason}\`${description ? `\n**Description:**\n${description}` : ''}`,
         userId: interaction.user.id,
         client: client,
         ticketId: channel.id,
@@ -221,13 +173,13 @@ const closeTicket = async (
   } else {
     await prisma.ticket.update({
       data: {
-        lockAt: new Date(Date.now() + lockTime),
+        lockAt: new Date(Date.now() + env.LOCK_TIME),
         closeReason: reason,
         closeDescription: description,
       },
       where: { id: channel.id },
     });
-    const lockAtTimestamp = Math.round((Date.now() + lockTime) / 1000);
+    const lockAtTimestamp = Math.round((Date.now() + env.LOCK_TIME) / 1000);
     //CurrentEditingTickets.set(channel.id, true); // This is done because sending the message 'seems' like someone else unarchiving it
     await channel.send({
       content: `This ticket has been closed. To reopen the ticket unarchive the thread by sending a message or clicking on the unarchive button.
@@ -237,16 +189,11 @@ const closeTicket = async (
       content: 'The ticket has been closed',
     });
 
-    await channel.setArchived(
-      true,
-      `Ticket closed by ${interaction.user.username}#${interaction.user.discriminator}`,
-    );
+    await channel.setArchived(true, `Ticket closed by ${interaction.user.username}#${interaction.user.discriminator}`);
     //CurrentEditingTickets.delete(channel.id);
     await sendLog({
       title: 'Ticket closed',
-      message: `**Reason:** \`${reason}\`${
-        description ? `\n**Description:**\n${description}` : ''
-      }`,
+      message: `**Reason:** \`${reason}\`${description ? `\n**Description:**\n${description}` : ''}`,
       userId: interaction.user.id,
       client: client,
       ticketId: channel.id,
@@ -272,20 +219,13 @@ const checkPendingLocks = async (client: Client) => {
   });
   tickets.forEach(async (ticket) => {
     if (ticket.lockAt && ticket.lockAt < new Date()) {
-      const channel = (await client.channels.fetch(ticket.id)) as
-        | ThreadChannel
-        | undefined;
+      const channel = (await client.channels.fetch(ticket.id)) as ThreadChannel | undefined;
       if (!channel) {
         return;
       }
       CurrentEditingTickets.set(channel.id, true); // This is done because sending the message 'seems' like someone else unarchiving it
-      await channel.send(
-        'This ticket is now locked and cannot be reopened. \nIf you would like to reach out again, please create another ticket.',
-      );
-      await channel.edit(
-        { locked: true, archived: true },
-        'Closed ticket auto locked',
-      );
+      await channel.send('This ticket is now locked and cannot be reopened. \nIf you would like to reach out again, please create another ticket.');
+      await channel.edit({ locked: true, archived: true }, 'Closed ticket auto locked');
       await prisma.ticket.update({
         data: {
           locked: true,
@@ -303,10 +243,4 @@ const checkPendingLocks = async (client: Client) => {
   });
 };
 
-export {
-  createTicket,
-  closeTicket,
-  checkPendingLocks,
-  ticketList,
-  sendAnonMessage,
-};
+export { createTicket, closeTicket, checkPendingLocks, ticketList, sendAnonMessage };

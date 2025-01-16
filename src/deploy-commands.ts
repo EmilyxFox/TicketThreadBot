@@ -9,7 +9,6 @@ import {
   RESTPutAPIApplicationGuildCommandsResult,
   Routes,
 } from 'discord-api-types/v9';
-import { clientId, guildId, token } from './config.json';
 import fs from 'fs';
 import { StoredCommand } from './types';
 import { Snowflake } from 'discord.js';
@@ -32,19 +31,22 @@ for (const file of commandFiles) {
   }
 }
 
-const rest = new REST({ version: '9' }).setToken(token);
+const rest = new REST({ version: '9' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   let commandResponse;
   try {
     commandResponse = (await rest.put(
-      Routes.applicationGuildCommands(clientId, guildId),
+      Routes.applicationGuildCommands(
+        process.env.CLIENT_ID,
+        process.env.GUILD_ID,
+      ),
       {
         body: commandData,
       },
     )) as RESTPutAPIApplicationGuildCommandsResult;
     console.log(
-      `Successfully registered application commands to the guild ${guildId}`,
+      `Successfully registered application commands to the guild ${process.env.GUILD_ID}`,
     );
   } catch (error) {
     console.error(error);
@@ -59,7 +61,11 @@ const rest = new REST({ version: '9' }).setToken(token);
         const id = idMap[commandName];
 
         await rest.put(
-          Routes.applicationCommandPermissions(clientId, guildId, id),
+          Routes.applicationCommandPermissions(
+            process.env.CLIENT_ID,
+            process.env.GUILD_ID,
+            id,
+          ),
           {
             body: { permissions },
           },
@@ -68,7 +74,7 @@ const rest = new REST({ version: '9' }).setToken(token);
         console.error(error);
       }
       console.log(
-        `Successfully registered permissions for the command ${commandName} on guild ${guildId}`,
+        `Successfully registered permissions for the command ${commandName} on guild ${process.env.GUILD_ID}`,
       );
     },
   );
