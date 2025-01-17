@@ -7,6 +7,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
@@ -40,6 +42,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            # Tag with the Git tag if it's available
+            type=ref,event=tag
             # set latest tag for default branch
             type=raw,value=latest,enable={{is_default_branch}}
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
