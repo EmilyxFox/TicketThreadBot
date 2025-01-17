@@ -183,7 +183,7 @@ const closeTicket = async (
     //CurrentEditingTickets.set(channel.id, true); // This is done because sending the message 'seems' like someone else unarchiving it
     await channel.send({
       content: `This ticket has been closed. To reopen the ticket unarchive the thread by sending a message or clicking on the unarchive button.
-                \nOtherwise this ticket will be locked at <t:${lockAtTimestamp}:F> <t:${lockAtTimestamp}:R>`,
+                \nOtherwise this ticket will be locked on <t:${lockAtTimestamp}:F> <t:${lockAtTimestamp}:R>`,
     });
     await interaction.editReply({
       content: 'The ticket has been closed',
