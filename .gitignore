@@ -3,4 +3,4 @@ node_modules
 .env
 
 dist
-src/config.json
+# src/config.json we need this to build in the cloud

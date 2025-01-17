@@ -1,6 +1,6 @@
 {
   "name": "thread-ticket-bot",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A discord ticket bot that is build off threads",
   "main": "dist/index.js",
   "scripts": {
