@@ -202,7 +202,7 @@ const closeTicket = async (
   }
 };
 
-const checkPendingLocks = async (client: Client) => {
+const checkPendingLocks = async (client: Client): Promise<void> => {
   const tickets = await prisma.ticket.findMany({
     where: {
       AND: [
