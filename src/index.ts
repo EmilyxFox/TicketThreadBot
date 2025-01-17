@@ -12,6 +12,8 @@ const buildDir = 'dist'; // The build directory
 /* Parse the ./commands directory for commands
 Each file should have an export in the format of StoredCommand */
 
+import 'dotenv/config';
+
 export const prisma = new PrismaClient();
 
 export const CurrentEditingTickets: Collection<Snowflake, boolean> = new Collection();
