@@ -4,11 +4,6 @@
       "name": "general",
       "message": "Ticket created {{modrole}} {{user}}",
       "style": "PRIMARY"
-    },
-    {
-      "name": "event",
-      "message": "Event ticket created {{modrole}} {{user}}",
-      "style": "SUCCESS"
     }
   ]
 }
