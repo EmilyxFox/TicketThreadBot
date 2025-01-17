@@ -4,10 +4,10 @@ import { ticketTypes } from './config.json';
 import { MessageError, TicketConfig } from './types';
 import { CurrentEditingTickets, prisma } from './index';
 import { CloseReason } from '.prisma/client';
-import axios from 'axios';
 import { sendLog } from './sendLog';
 import { embedBlue, embedGreen, embedOrange, embedRed } from './consts';
 import { env } from './env';
+import { nanoid } from 'nanoid';
 
 const ticketMap: Collection<string, TicketConfig> = new Collection();
 const ticketList: string[] = [];
@@ -29,7 +29,7 @@ type createTicketArgs = {
   };
 };
 const createTicket = async ({ channel, userId, userDisplayName, ticketType, modGeneratedOptions }: createTicketArgs): Promise<void> => {
-  const textId = (await axios.get('https://uuid.rocks/nanoid?len=10')).data as string;
+  const textId = nanoid(10);
   const thread = await channel.threads.create({
     name: `${userDisplayName}-${textId}`,
     autoArchiveDuration: env.AUTO_ARCHIVE_DURATION as ThreadAutoArchiveDuration,
