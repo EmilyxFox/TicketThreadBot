@@ -23,7 +23,7 @@ export const envVariables = z.object({
   ANONYMOUS_USER: z.string().optional().default('The string to show on anon messages'),
   LOG_CHANNEL_ID: z.string(),
 
-  NODE_ENV: z.enum(['production', 'dev']),
+  NODE_ENV: z.enum(['production', 'dev']).optional().default('dev'),
 });
 
 export const env = envVariables.parse(process.env);
